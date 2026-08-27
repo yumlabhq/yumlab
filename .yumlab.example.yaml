@@ -1,0 +1,37 @@
+# Yumlab configuration. Copy to .yumlab.yaml at the root of your repository.
+#
+# Everything here is optional. Without this file every control runs and nothing
+# is declared.
+
+# Turn controls off by id. A control that is not listed stays enabled.
+controls:
+  ghost-secrets: true
+
+# Declare names you know exist but that your token is not allowed to list.
+#
+# This is the way out when you cannot get admin access on the repository:
+# listing secrets requires it, and most developers do not have it. Declared
+# names are treated exactly like names read from the API.
+#
+# Only names. Never values. This file is committed to your repository.
+#
+# Declaring a name can only prove that something exists. It never makes an
+# unreadable scope readable, so it can never cause a false "missing secret".
+secrets:
+  repository:
+    - CODECOV_TOKEN
+  organization:
+    - NPM_TOKEN
+    - SLACK_WEBHOOK
+  environments:
+    production:
+      - AWS_DEPLOY_ROLE
+    staging:
+      - AWS_DEPLOY_ROLE
+
+variables:
+  organization:
+    - AWS_REGION
+  environments:
+    production:
+      - API_BASE

@@ -1,0 +1,60 @@
+version: 2
+
+project_name: yumlab
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: yumlab
+    main: ./cmd/yumlab
+    binary: yumlab
+    # A single static binary, so Yumlab runs in any CI container.
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - LICENSE
+      - .yumlab.example.yaml
+      - docs/**/*
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+dockers:
+  - image_templates:
+      - "ghcr.io/yumlab/yumlab:{{ .Version }}"
+      - "ghcr.io/yumlab/yumlab:latest"
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--label=org.opencontainers.image.source=https://github.com/yumlab/yumlab"
+      - "--label=org.opencontainers.image.licenses=Apache-2.0"
+
+brews:
+  - repository:
+      owner: yumlab
+      name: homebrew-tap
+    homepage: https://github.com/yumlab/yumlab
+    description: Find what will break your GitHub Actions pipeline, before you push
+    license: Apache-2.0

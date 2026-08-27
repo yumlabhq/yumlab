@@ -1,0 +1,25 @@
+# Every secret reference here is computed at runtime. Yumlab must report these
+# as UNKNOWN and never as findings.
+name: Dynamic
+
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        type: string
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.region }}
+    strategy:
+      matrix:
+        target: [alpha, beta]
+    steps:
+      - name: Push
+        env:
+          KEY: ${{ secrets[format('{0}_KEY', inputs.region)] }}
+          TOKEN: ${{ secrets[matrix.target] }}
+          OTHER: ${{ secrets[env.SECRET_NAME] }}
+        run: ./push.sh

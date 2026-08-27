@@ -1,0 +1,25 @@
+# A reusable workflow. Its secrets can be supplied by the caller, so they
+# cannot be verified against this repository alone.
+name: Reusable deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+    secrets:
+      DEPLOY_KEY:
+        required: true
+      EXTRA_TOKEN:
+        required: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          INHERITED: ${{ secrets.SOME_INHERITED_SECRET }}
+        run: ./deploy.sh ${{ inputs.environment }}
