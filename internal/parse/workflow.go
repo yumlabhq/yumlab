@@ -12,7 +12,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/yumlab/yumlab/internal/expr"
+	"github.com/yumlabhq/yumlab/internal/expr"
 )
 
 // Location is a position inside a workflow file. Line and Col are 1-based.

@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/yumlab/yumlab/internal/config"
-	"github.com/yumlab/yumlab/internal/controls"
-	"github.com/yumlab/yumlab/internal/github"
-	"github.com/yumlab/yumlab/internal/parse"
-	"github.com/yumlab/yumlab/internal/report"
+	"github.com/yumlabhq/yumlab/internal/config"
+	"github.com/yumlabhq/yumlab/internal/controls"
+	"github.com/yumlabhq/yumlab/internal/github"
+	"github.com/yumlabhq/yumlab/internal/parse"
+	"github.com/yumlabhq/yumlab/internal/report"
 )
 
 // Options configures a scan.

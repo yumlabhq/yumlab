@@ -46,7 +46,7 @@ UNKNOWN  3 references could not be verified
 ## Install
 
 ```bash
-go install github.com/yumlab/yumlab/cmd/yumlab@latest
+go install github.com/yumlabhq/yumlab/cmd/yumlab@latest
 ```
 
 Binaries, a Homebrew formula and a Docker image are on the way.
@@ -88,6 +88,10 @@ UNKNOWN  3 references could not be verified
 You will never see "you are missing a secret" because Yumlab lacked the
 permission to look. If you cannot get the permission, declare the names you know
 in `.yumlab.yaml` — see [`.yumlab.example.yaml`](.yumlab.example.yaml).
+
+Yumlab only ever reads, never reads secret *values*, and sends your token
+nowhere but the GitHub API. [SECURITY.md](SECURITY.md) spells that out, and is
+where to report a vulnerability.
 
 ## Controls
 

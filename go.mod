@@ -1,4 +1,4 @@
-module github.com/yumlab/yumlab
+module github.com/yumlabhq/yumlab
 
 go 1.22.5
 

@@ -6,10 +6,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/yumlab/yumlab/internal/expr"
-	"github.com/yumlab/yumlab/internal/github"
-	"github.com/yumlab/yumlab/internal/parse"
-	"github.com/yumlab/yumlab/internal/score"
+	"github.com/yumlabhq/yumlab/internal/expr"
+	"github.com/yumlabhq/yumlab/internal/github"
+	"github.com/yumlabhq/yumlab/internal/parse"
+	"github.com/yumlabhq/yumlab/internal/score"
 )
 
 // GhostSecretsID is the stable identifier of this control.

@@ -7,8 +7,8 @@
 package report
 
 import (
-	"github.com/yumlab/yumlab/internal/controls"
-	"github.com/yumlab/yumlab/internal/parse"
+	"github.com/yumlabhq/yumlab/internal/controls"
+	"github.com/yumlabhq/yumlab/internal/parse"
 )
 
 // ControlRun is the outcome of one control.

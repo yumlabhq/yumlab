@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yumlab/yumlab/internal/config"
-	"github.com/yumlab/yumlab/internal/github"
-	"github.com/yumlab/yumlab/internal/parse"
+	"github.com/yumlabhq/yumlab/internal/config"
+	"github.com/yumlabhq/yumlab/internal/github"
+	"github.com/yumlabhq/yumlab/internal/parse"
 )
 
 func loadWorkflows(t *testing.T, names ...string) []*parse.Workflow {

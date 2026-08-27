@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/yumlab/yumlab/internal/github"
-	"github.com/yumlab/yumlab/internal/report"
-	"github.com/yumlab/yumlab/internal/scan"
+	"github.com/yumlabhq/yumlab/internal/github"
+	"github.com/yumlabhq/yumlab/internal/report"
+	"github.com/yumlabhq/yumlab/internal/scan"
 )
 
 type scanFlags struct {

@@ -11,17 +11,17 @@ func TestParseRemoteURL(t *testing.T) {
 		in   string
 		want string
 	}{
-		{"https://github.com/yumlab/yumlab.git", "yumlab/yumlab"},
-		{"https://github.com/yumlab/yumlab", "yumlab/yumlab"},
-		{"http://github.com/yumlab/yumlab.git", "yumlab/yumlab"},
-		{"git@github.com:yumlab/yumlab.git", "yumlab/yumlab"},
-		{"git@github.com:yumlab/yumlab", "yumlab/yumlab"},
-		{"ssh://git@github.com/yumlab/yumlab.git", "yumlab/yumlab"},
-		{"git://github.com/yumlab/yumlab.git", "yumlab/yumlab"},
-		{"https://user:token@github.com/yumlab/yumlab.git", "yumlab/yumlab"},
-		{"https://github.example.com/yumlab/yumlab.git", "yumlab/yumlab"},
-		{"https://github.com/yumlab/yumlab/", "yumlab/yumlab"},
-		{"  git@github.com:yumlab/yumlab.git  ", "yumlab/yumlab"},
+		{"https://github.com/yumlabhq/yumlab.git", "yumlabhq/yumlab"},
+		{"https://github.com/yumlabhq/yumlab", "yumlabhq/yumlab"},
+		{"http://github.com/yumlabhq/yumlab.git", "yumlabhq/yumlab"},
+		{"git@github.com:yumlabhq/yumlab.git", "yumlabhq/yumlab"},
+		{"git@github.com:yumlabhq/yumlab", "yumlabhq/yumlab"},
+		{"ssh://git@github.com/yumlabhq/yumlab.git", "yumlabhq/yumlab"},
+		{"git://github.com/yumlabhq/yumlab.git", "yumlabhq/yumlab"},
+		{"https://user:token@github.com/yumlabhq/yumlab.git", "yumlabhq/yumlab"},
+		{"https://github.example.com/yumlabhq/yumlab.git", "yumlabhq/yumlab"},
+		{"https://github.com/yumlabhq/yumlab/", "yumlabhq/yumlab"},
+		{"  git@github.com:yumlabhq/yumlab.git  ", "yumlabhq/yumlab"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.in, func(t *testing.T) {
@@ -45,8 +45,8 @@ func TestParseRemoteURLRejectsGarbage(t *testing.T) {
 }
 
 func TestParseSlug(t *testing.T) {
-	r, err := ParseSlug("yumlab/yumlab")
-	if err != nil || r.Owner != "yumlab" || r.Name != "yumlab" {
+	r, err := ParseSlug("yumlabhq/yumlab")
+	if err != nil || r.Owner != "yumlabhq" || r.Name != "yumlab" {
 		t.Fatalf("ParseSlug = %v, %v", r, err)
 	}
 	for _, bad := range []string{"", "yumlab", "a/b/c", "/b", "a/"} {
@@ -69,7 +69,7 @@ func TestDetectRepositoryFromGitConfig(t *testing.T) {
 [remote "upstream"]
 	url = git@github.com:someone/else.git
 [remote "origin"]
-	url = git@github.com:yumlab/yumlab.git
+	url = git@github.com:yumlabhq/yumlab.git
 	fetch = +refs/heads/*:refs/remotes/origin/*
 `
 	if err := os.WriteFile(filepath.Join(gitDir, "config"), []byte(config), 0o644); err != nil {
@@ -86,8 +86,8 @@ func TestDetectRepositoryFromGitConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DetectRepository: %v", err)
 	}
-	if r.String() != "yumlab/yumlab" {
-		t.Errorf("DetectRepository = %q, want yumlab/yumlab", r)
+	if r.String() != "yumlabhq/yumlab" {
+		t.Errorf("DetectRepository = %q, want yumlabhq/yumlab", r)
 	}
 }
 

@@ -21,7 +21,7 @@ reports what is going to fail, sorted by the minutes it will waste.
 
 It never writes to your repository, has no backend, and sends no telemetry.
 The only network calls it makes are to the GitHub API.`,
-		Version:       version,
+		Version:       resolveVersion(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}

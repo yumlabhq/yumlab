@@ -42,19 +42,18 @@ changelog:
       - "^test:"
       - "^chore:"
 
-dockers:
-  - image_templates:
-      - "ghcr.io/yumlab/yumlab:{{ .Version }}"
-      - "ghcr.io/yumlab/yumlab:latest"
-    dockerfile: Dockerfile
-    build_flag_templates:
-      - "--label=org.opencontainers.image.source=https://github.com/yumlab/yumlab"
-      - "--label=org.opencontainers.image.licenses=Apache-2.0"
+release:
+  footer: |
+    ## Install
 
-brews:
-  - repository:
-      owner: yumlab
-      name: homebrew-tap
-    homepage: https://github.com/yumlab/yumlab
-    description: Find what will break your GitHub Actions pipeline, before you push
-    license: Apache-2.0
+    ```
+    go install github.com/yumlabhq/yumlab/cmd/yumlab@{{ .Tag }}
+    ```
+
+    Or download a binary below. Verify it against `checksums.txt`.
+
+# Homebrew and the ghcr.io image are v0.5 in the roadmap. Both need
+# infrastructure this release does not have: a homebrew-tap repository plus a
+# token that can push to it, and per-architecture docker entries combined by a
+# docker_manifests block. Everything above is covered by the built-in
+# GITHUB_TOKEN alone.

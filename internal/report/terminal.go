@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/yumlab/yumlab/internal/controls"
-	"github.com/yumlab/yumlab/internal/score"
+	"github.com/yumlabhq/yumlab/internal/controls"
+	"github.com/yumlabhq/yumlab/internal/score"
 )
 
 // palette holds the escape sequences, empty when colour is disabled.

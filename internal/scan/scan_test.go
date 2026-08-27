@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yumlab/yumlab/internal/controls"
-	"github.com/yumlab/yumlab/internal/parse"
+	"github.com/yumlabhq/yumlab/internal/controls"
+	"github.com/yumlabhq/yumlab/internal/parse"
 )
 
 // repoWith builds a throwaway repository containing the given workflow files,

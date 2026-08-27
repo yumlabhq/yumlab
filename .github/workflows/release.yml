@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# Only what goreleaser needs to create the release and upload the archives.
+# No package or tap publishing yet, so nothing more is required.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # goreleaser builds the changelog from git history; a shallow clone
+          # makes it fail.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: true
+
+      # ci.yml only runs on pushes to main and on pull requests, so without
+      # this a tag push would publish untested code.
+      - name: Test
+        run: go test ./...
+
+      - name: Release
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
