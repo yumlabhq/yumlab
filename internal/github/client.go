@@ -73,9 +73,21 @@ func (c *Client) Inventory(ctx context.Context, environments []string) (*Invento
 
 	inv.RepoSecrets = c.listRepoSecrets(ctx)
 	inv.RepoVariables = c.listRepoVariables(ctx)
-	inv.OrgSecrets = c.listOrgSecrets(ctx)
-	inv.OrgVariables = c.listOrgVariables(ctx)
 	inv.Environments = c.listEnvironments(ctx)
+
+	// A repository owned by a user belongs to no organization, so the set of
+	// organization secrets available to it is empty. That is a conclusive fact,
+	// not something we failed to read, and recording it as such is what lets the
+	// secrets control reach a verdict on a personal repository at all. Asking
+	// the organization endpoints here would answer 404, which is indistinguishable
+	// from a missing permission and would turn every reference into UNKNOWN.
+	if isUserOwned(repoInfo) {
+		inv.OrgSecrets = NewNameSet(nil)
+		inv.OrgVariables = NewNameSet(nil)
+	} else {
+		inv.OrgSecrets = c.listOrgSecrets(ctx)
+		inv.OrgVariables = c.listOrgVariables(ctx)
+	}
 
 	for _, env := range environments {
 		// Reading secrets of an environment that does not exist would return a
@@ -90,6 +102,14 @@ func (c *Client) Inventory(ctx context.Context, environments []string) (*Invento
 	}
 
 	return inv, nil
+}
+
+// isUserOwned reports whether the repository belongs to a user rather than an
+// organization. GitHub reports the owner type as "User" or "Organization"; an
+// empty type is treated as an organization, which is the cautious reading since
+// it leads to asking rather than assuming.
+func isUserOwned(repo *gh.Repository) bool {
+	return repo.GetOwner().GetType() == "User"
 }
 
 func (c *Client) listRepoSecrets(ctx context.Context) NameSet {

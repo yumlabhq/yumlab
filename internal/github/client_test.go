@@ -27,7 +27,7 @@ func newAPIServer(t *testing.T) *apiServer {
 
 	s.mux.HandleFunc("/api/v3/repos/acme/app", func(w http.ResponseWriter, r *http.Request) {
 		s.count(r)
-		fmt.Fprintf(w, `{"id": %d, "name": "app"}`, testRepoID)
+		fmt.Fprintf(w, `{"id": %d, "name": "app", "owner": {"login": "acme", "type": "Organization"}}`, testRepoID)
 	})
 	s.mux.HandleFunc("/api/v3/", func(w http.ResponseWriter, r *http.Request) {
 		s.count(r)
@@ -242,6 +242,64 @@ func TestInventoryFailsWhenRepositoryIsUnreachable(t *testing.T) {
 	}
 	if _, err := c.Inventory(context.Background(), nil); err == nil {
 		t.Error("Inventory should fail when the repository cannot be read")
+	}
+}
+
+// A repository owned by a user belongs to no organization. The organization
+// scopes must come back as conclusively empty, not as denied: treating them as
+// unreadable would poison the merged set and make every reference UNKNOWN,
+// leaving Yumlab unable to say anything at all about a personal repository.
+func TestUserOwnedRepositoryHasNoOrganizationScope(t *testing.T) {
+	s := newAPIServer(t)
+	s.mux.HandleFunc("/api/v3/repos/ousmane/side-project", func(w http.ResponseWriter, r *http.Request) {
+		s.count(r)
+		fmt.Fprint(w, `{"id": 99, "name": "side-project", "owner": {"login": "ousmane", "type": "User"}}`)
+	})
+	s.secrets("repos/ousmane/side-project/actions/secrets", "NPM_TOKEN")
+	s.variables("repos/ousmane/side-project/actions/variables")
+	s.handle("repos/ousmane/side-project/environments", func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `{"total_count": 0, "environments": []}`)
+	})
+	// The organization endpoints are deliberately left unregistered: they must
+	// never be called for a user-owned repository.
+
+	c, err := New("ousmane", "side-project", Options{Token: "t", BaseURL: s.server.URL + "/"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inv, err := c.Inventory(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("Inventory: %v", err)
+	}
+
+	for name, set := range map[string]NameSet{
+		"OrgSecrets":   inv.OrgSecrets,
+		"OrgVariables": inv.OrgVariables,
+	} {
+		if !set.Access.Readable() {
+			t.Errorf("%s.Access = %v (%s), want a readable empty set", name, set.Access, set.Reason)
+		}
+		if set.Len() != 0 {
+			t.Errorf("%s should be empty, got %v", name, set.Names())
+		}
+	}
+
+	// The whole point: a missing secret is still conclusively missing.
+	merged := inv.RepoSecrets.Merge(inv.OrgSecrets)
+	if !merged.Access.Readable() {
+		t.Fatal("merged set is unreadable, so no finding could ever be produced")
+	}
+	if !merged.Has("NPM_TOKEN") || merged.Has("ABSENT") {
+		t.Errorf("merged set = %v, want exactly [NPM_TOKEN]", merged.Names())
+	}
+
+	for _, path := range []string{
+		"/api/v3/repos/ousmane/side-project/actions/organization-secrets",
+		"/api/v3/repos/ousmane/side-project/actions/organization-variables",
+	} {
+		if s.requests[path] != 0 {
+			t.Errorf("called %s for a user-owned repository", path)
+		}
 	}
 }
 
