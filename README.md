@@ -98,9 +98,13 @@ where to report a vulnerability.
 | ID | What it finds | Network |
 | --- | --- | --- |
 | [`ghost-secrets`](docs/controls/ghost-secrets.md) | `secrets.X` and `vars.X` referenced but defined nowhere the job can read | yes |
+| [`token-permissions`](docs/controls/token-permissions.md) | a job running an action that needs a permission its `permissions:` block does not grant | no |
 
-More are coming: token permissions, long-lived credentials, dead caches, and job
-ordering based on run history.
+`token-permissions` needs no token, so `yumlab scan --offline` works in any
+repository with no setup at all.
+
+More are coming: long-lived credentials, dead caches, and job ordering based on
+run history.
 
 ## Design rules
 

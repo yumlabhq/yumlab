@@ -167,19 +167,22 @@ func severityMarker(p palette, s controls.Severity) (string, string) {
 func (t *termWriter) unknown(r *Report) {
 	p := t.p
 
-	gaps := r.Gaps()
-	if len(gaps) == 0 && len(r.SkippedControls) == 0 {
+	if r.Unverified() == 0 && len(r.SkippedControls) == 0 {
 		return
 	}
 
-	// Merge identical reasons coming from different controls.
+	// Merge identical reasons coming from different controls. Parse gaps are
+	// kept aside: unlike a reference we chose not to check, an expression the
+	// parser could not read is only actionable with a file:line to look at.
 	merged := map[string]int{}
 	var order []string
-	for _, g := range gaps {
-		if _, seen := merged[g.Reason]; !seen {
-			order = append(order, g.Reason)
+	for _, c := range r.Controls {
+		for _, g := range c.Coverage.Gaps {
+			if _, seen := merged[g.Reason]; !seen {
+				order = append(order, g.Reason)
+			}
+			merged[g.Reason] += g.Count()
 		}
-		merged[g.Reason] += g.Count()
 	}
 	sort.SliceStable(order, func(i, j int) bool { return merged[order[i]] > merged[order[j]] })
 
@@ -193,6 +196,19 @@ func (t *termWriter) unknown(r *Report) {
 	for _, reason := range order {
 		n := merged[reason]
 		t.printf("  %s%d%s  %s\n", p.bold, n, p.reset, reason)
+	}
+
+	// An expression Yumlab could not parse is a gap in Yumlab, not in the
+	// workflow. Point at it precisely so it can be looked at, and reported.
+	for _, g := range r.ParseGaps {
+		t.printf("  %s%d%s  %s\n", p.bold, g.Count(), p.reset, g.Reason)
+		for i, loc := range g.Locs {
+			if i == maxGapLocations {
+				t.printf("        %s… and %d more%s\n", p.dim, len(g.Locs)-i, p.reset)
+				break
+			}
+			t.printf("        %s%s%s  %s\n", p.dim, loc.Short(), p.reset, truncate(g.Refs[i], 48))
+		}
 	}
 
 	for _, c := range r.SkippedControls {
@@ -237,11 +253,27 @@ func (t *termWriter) summary(r *Report) {
 	}
 }
 
+// maxGapLocations caps how many positions are listed under one gap, so a
+// workflow full of the same problem does not bury the rest of the report.
+const maxGapLocations = 5
+
 func plural(n int) string {
 	if n == 1 {
 		return ""
 	}
 	return "s"
+}
+
+// truncate shortens a single-line excerpt to fit the report.
+func truncate(s string, max int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if len(s) <= max {
+		return s
+	}
+	if max <= 1 {
+		return "…"
+	}
+	return s[:max-1] + "…"
 }
 
 // wrap breaks text into lines of at most width characters, on word boundaries.

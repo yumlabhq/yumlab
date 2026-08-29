@@ -1,0 +1,16 @@
+# No permissions block anywhere. The effective grant comes from a repository or
+# organization setting that only the API can reveal, so this must be reported as
+# UNKNOWN and never as a finding — guessing here is exactly the false positive
+# the product cannot afford.
+name: Permissions undeclared
+
+on: push
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::111111111111:role/deploy
+          aws-region: eu-west-3

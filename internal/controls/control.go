@@ -134,6 +134,7 @@ type Control interface {
 func All() []Control {
 	return []Control{
 		&GhostSecrets{},
+		&TokenPermissions{},
 	}
 }
 

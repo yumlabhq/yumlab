@@ -285,6 +285,19 @@ func newGapSet() *gapSet {
 	return &gapSet{byReason: map[string]*Gap{}}
 }
 
+// addAt records a gap for something that is not a reference, such as a step
+// whose required permission could not be resolved.
+func (g *gapSet) addAt(reason, label string, loc parse.Location) {
+	gap, ok := g.byReason[reason]
+	if !ok {
+		gap = &Gap{Reason: reason}
+		g.byReason[reason] = gap
+		g.order = append(g.order, reason)
+	}
+	gap.Refs = append(gap.Refs, label)
+	gap.Locs = append(gap.Locs, loc)
+}
+
 func (g *gapSet) add(reason string, ref parse.Reference) {
 	gap, ok := g.byReason[reason]
 	if !ok {

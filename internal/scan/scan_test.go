@@ -45,17 +45,36 @@ func TestOfflineScanRunsNoNetworkControl(t *testing.T) {
 	if rep.WorkflowCount != 2 {
 		t.Errorf("WorkflowCount = %d, want 2", rep.WorkflowCount)
 	}
-	if len(rep.Findings) != 0 {
-		t.Errorf("offline scan produced findings: %v", rep.Findings)
+	// Offline runs exactly the static controls and skips the network ones.
+	var ranStatic, skippedNetwork bool
+	for _, c := range rep.Controls {
+		if c.ID == controls.GhostSecretsID {
+			t.Error("ghost-secrets needs the network and must not run offline")
+		}
+		if c.ID == controls.TokenPermissionsID {
+			ranStatic = true
+		}
 	}
-	if len(rep.Controls) != 0 {
-		t.Errorf("offline scan ran %d controls, want 0 in v0.1", len(rep.Controls))
+	for _, c := range rep.SkippedControls {
+		if c.ID == controls.GhostSecretsID {
+			skippedNetwork = true
+		}
+		if c.ID == controls.TokenPermissionsID {
+			t.Error("token-permissions is static and must not be skipped offline")
+		}
 	}
-	if len(rep.SkippedControls) != 1 || rep.SkippedControls[0].ID != controls.GhostSecretsID {
+	if !ranStatic {
+		t.Error("token-permissions is static and should have run offline")
+	}
+	if !skippedNetwork {
 		t.Errorf("offline scan should report ghost-secrets as skipped, got %v", rep.SkippedControls)
 	}
-	if rep.HasFindings() {
-		t.Error("HasFindings should be false, the scan must exit clean")
+
+	// These fixtures reference secrets, which only the network control checks.
+	for _, f := range rep.Findings {
+		if f.ControlID == controls.GhostSecretsID {
+			t.Errorf("offline scan produced a secrets finding: %v", f.Message)
+		}
 	}
 }
 
@@ -83,6 +102,69 @@ func TestScanWithoutTokenDegradesInsteadOfFailing(t *testing.T) {
 	}
 	if !explained {
 		t.Errorf("the report should say a token is missing, notes = %v", rep.Notes)
+	}
+}
+
+// An expression the parser cannot read is invisible to every control at once.
+// It must still be counted and located, even offline where no control runs at
+// all — otherwise coverage is silently overstated.
+func TestScanReportsUnparsableExpressions(t *testing.T) {
+	root := repoWith(t)
+	body := "" +
+		"name: W\n" +
+		"on: push\n" +
+		"jobs:\n" +
+		"  a:\n" +
+		"    runs-on: ubuntu-latest\n" +
+		"    steps:\n" +
+		"      - run: echo ${{ secrets. }}\n" +
+		"      - run: echo ${{ 'unterminated }}\n"
+	if err := os.WriteFile(filepath.Join(root, ".github", "workflows", "bad.yml"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rep, err := Run(context.Background(), Options{Root: root, Offline: true})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	// The file itself is valid YAML, so it must not be a load error.
+	if len(rep.LoadErrors) != 0 {
+		t.Errorf("valid YAML must not be reported as unparsable: %v", rep.LoadErrors)
+	}
+	if len(rep.ParseGaps) != 1 {
+		t.Fatalf("got %d parse gaps, want 1", len(rep.ParseGaps))
+	}
+
+	gap := rep.ParseGaps[0]
+	if gap.Count() != 2 {
+		t.Errorf("Count = %d, want 2 unreadable expressions", gap.Count())
+	}
+	// Offline runs no control, so this count can only come from the scan.
+	if rep.Unverified() != 2 {
+		t.Errorf("Unverified = %d, want 2", rep.Unverified())
+	}
+	for _, loc := range gap.Locs {
+		if loc.File == "" || loc.Line <= 0 {
+			t.Errorf("parse gap has no file:line: %+v", loc)
+		}
+	}
+	if !rep.HasFindings() {
+		return // expected: an unreadable expression is never a finding
+	}
+	t.Error("an unparsable expression must never become a finding")
+}
+
+// A workflow whose expressions all parse must report no parse gap at all.
+func TestScanReportsNoParseGapOnCleanWorkflows(t *testing.T) {
+	root := repoWith(t, "broken-secrets.yml", "healthy.yml", "dynamic.yml", "reusable.yml")
+
+	rep, err := Run(context.Background(), Options{Root: root, Offline: true})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(rep.ParseGaps) != 0 {
+		t.Errorf("testdata workflows should all parse, got %+v", rep.ParseGaps)
 	}
 }
 
@@ -120,7 +202,7 @@ func TestScanWithoutWorkflowsIsNotAnError(t *testing.T) {
 
 func TestScanLoadsConfig(t *testing.T) {
 	root := repoWith(t, "healthy.yml")
-	cfg := "controls:\n  ghost-secrets: false\n"
+	cfg := "controls:\n  ghost-secrets: false\n  token-permissions: false\n"
 	if err := os.WriteFile(filepath.Join(root, ".yumlab.yaml"), []byte(cfg), 0o644); err != nil {
 		t.Fatal(err)
 	}

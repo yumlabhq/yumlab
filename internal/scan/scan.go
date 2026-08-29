@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/yumlabhq/yumlab/internal/config"
 	"github.com/yumlabhq/yumlab/internal/controls"
@@ -51,6 +52,7 @@ func Run(ctx context.Context, opts Options) (*report.Report, error) {
 		Offline:       opts.Offline,
 		WorkflowCount: len(workflows),
 		LoadErrors:    loadErrors,
+		ParseGaps:     parseGaps(workflows),
 	}
 	if opts.Offline {
 		rep.Repository = ""
@@ -96,6 +98,40 @@ func Run(ctx context.Context, opts Options) (*report.Report, error) {
 
 	controls.SortFindings(rep.Findings)
 	return rep, nil
+}
+
+// parseGaps turns the expressions the parser could not read into gaps.
+//
+// These belong to the scan, not to a control. An expression nobody can parse is
+// invisible to every control at once, so leaving it to a control would mean it
+// disappears entirely when that control is disabled or skipped — which is
+// exactly what happens offline. Counting it here keeps the promise that
+// anything unverified is announced rather than dropped.
+func parseGaps(workflows []*parse.Workflow) []controls.Gap {
+	byReason := map[string]*controls.Gap{}
+	var order []string
+
+	for _, w := range workflows {
+		for _, u := range w.Unresolved {
+			// The parser's own message names an offset that means nothing to a
+			// user; the location already says where it is.
+			reason := "the expression could not be parsed, so its references are unknown"
+			gap, ok := byReason[reason]
+			if !ok {
+				gap = &controls.Gap{Reason: reason}
+				byReason[reason] = gap
+				order = append(order, reason)
+			}
+			gap.Refs = append(gap.Refs, strings.TrimSpace(u.Text))
+			gap.Locs = append(gap.Locs, u.Loc)
+		}
+	}
+
+	out := make([]controls.Gap, 0, len(order))
+	for _, reason := range order {
+		out = append(out, *byReason[reason])
+	}
+	return out
 }
 
 func needsNetwork(cs []controls.Control) bool {

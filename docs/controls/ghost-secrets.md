@@ -96,6 +96,43 @@ injected by the runner and are always valid.
 **Any scope that could not be read.** See
 [token and permissions](../token-and-permissions.md).
 
+## External secret managers
+
+If your secrets live in HashiCorp Vault, AWS Secrets Manager, Doppler or
+1Password, this control does not produce false positives on them — and the
+reason is structural rather than a special case.
+
+Nothing outside GitHub can write into the `secrets` context. An external manager
+hands its values to later steps as environment variables or step outputs:
+
+```yaml
+      - uses: hashicorp/vault-action@v3
+        id: vault
+        with:
+          method: jwt                       # OIDC: no GitHub secret at all
+          secrets: secret/data/ci npm_token | NPM_TOKEN
+
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ env.NPM_TOKEN }}          # env, not secrets
+          OTHER: ${{ steps.vault.outputs.NPM_TOKEN }}    # step output
+```
+
+This control reads `secrets.` and `vars.` only. `env.`, `steps.*.outputs` and
+`needs.*.outputs` are parsed but never checked against your repository, so a
+value that arrives from Vault is never claimed to be missing.
+
+The one GitHub secret a Vault setup may still have is the credential used to
+authenticate to Vault itself — `secrets.VAULT_TOKEN` with token or AppRole auth.
+That one is a real repository secret and is checked normally. With JWT/OIDC
+there is no GitHub secret at all, and nothing for this control to say.
+
+The consequence is worth being honest about: **on a repository fully backed by
+an external manager, this control has very little to check.** The static
+controls are what serve those teams — in particular
+[`token-permissions`](token-permissions.md), since OIDC fails silently without
+`id-token: write`.
+
 ## How to silence it legitimately
 
 If the name exists but Yumlab cannot see it — typically an organization secret

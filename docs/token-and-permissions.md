@@ -77,6 +77,7 @@ mode.
 | Control | Network | Permissions | Without them |
 | --- | --- | --- | --- |
 | [`ghost-secrets`](controls/ghost-secrets.md) | yes | Secrets: read, Variables: read, Environments: read | Every affected reference becomes `UNKNOWN`; no finding is produced |
+| [`token-permissions`](controls/token-permissions.md) | **no** | none | Nothing degrades: it reads only the workflow files |
 
 Controls that need the network never run under `--offline`, and never will in a
 pre-commit hook.

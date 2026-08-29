@@ -37,6 +37,12 @@ type Report struct {
 	Findings []controls.Finding
 	Controls []ControlRun
 
+	// ParseGaps holds expressions the parser could not read at all. They belong
+	// to the scan rather than to a control: a ${{ }} nobody can parse is
+	// invisible to every control at once, so it must be reported even when no
+	// control runs.
+	ParseGaps []controls.Gap
+
 	// Notes are scan-level remarks, such as why a scope could not be read.
 	Notes []string
 }
@@ -50,11 +56,15 @@ func (r *Report) TotalWastedMinutes() int {
 	return sum
 }
 
-// Unverified counts every reference no control could check.
+// Unverified counts every reference no control could check, including the
+// expressions the parser itself could not read.
 func (r *Report) Unverified() int {
 	var n int
 	for _, c := range r.Controls {
 		n += c.Coverage.Unverified()
+	}
+	for _, g := range r.ParseGaps {
+		n += g.Count()
 	}
 	return n
 }
@@ -68,9 +78,11 @@ func (r *Report) Checked() int {
 	return n
 }
 
-// Gaps returns every gap across controls, most affected first.
+// Gaps returns everything the scan could not verify: the gaps reported by each
+// control, plus the expressions the parser could not read.
 func (r *Report) Gaps() []controls.Gap {
 	var out []controls.Gap
+	out = append(out, r.ParseGaps...)
 	for _, c := range r.Controls {
 		out = append(out, c.Coverage.Gaps...)
 	}

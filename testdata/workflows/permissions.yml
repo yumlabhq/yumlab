@@ -1,0 +1,65 @@
+# Fixtures for the token-permissions control. One job per outcome.
+name: Permissions
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # FINDING: OIDC needs id-token: write, and the workflow block grants only
+  # contents: read. Naming contents sets every other scope to none.
+  oidc-missing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::111111111111:role/deploy
+          aws-region: eu-west-3
+
+  # CLEAN: the job's own block replaces the workflow's and grants what is needed.
+  oidc-granted:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::111111111111:role/deploy
+          aws-region: eu-west-3
+
+  # CLEAN: the same action without OIDC inputs needs no id-token at all.
+  # Reporting this would be a false positive.
+  static-credentials:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-3
+
+  # FINDING: creating a release needs contents: write.
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: softprops/action-gh-release@v2
+
+  # CLEAN: write-all names every scope at once.
+  release-write-all:
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - uses: softprops/action-gh-release@v2
+
+  # CLEAN: an action that is not in the table is never guessed about.
+  unknown-action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: some-vendor/some-action@v1
+        with:
+          role-to-assume: irrelevant

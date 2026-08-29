@@ -24,6 +24,15 @@ const AssumedRunMinutes = 8
 // fixed, costing another full cycle.
 const GhostSecretMinutes = 2 * AssumedRunMinutes
 
+// MissingPermissionMinutes is the cost of a job whose token lacks a permission
+// an action it runs requires.
+//
+// Same model as GhostSecretMinutes, and deliberately not a different one: the
+// failure shape is identical — the pipeline runs, the step fails, the developer
+// fixes it and runs again. Refining this needs real step timings from the runs
+// API, not a second invented constant.
+const MissingPermissionMinutes = 2 * AssumedRunMinutes
+
 // Total sums the estimated minutes of a set of findings.
 func Total(minutes []int) int {
 	var sum int

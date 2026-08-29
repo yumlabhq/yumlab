@@ -438,7 +438,7 @@ func TestSelectedDropsNetworkControlsWhenOffline(t *testing.T) {
 }
 
 func TestSelectedRespectsDisabledControls(t *testing.T) {
-	cfg := config.Config{Controls: map[string]bool{GhostSecretsID: false}}
+	cfg := config.Config{Controls: map[string]bool{GhostSecretsID: false, TokenPermissionsID: false}}
 	enabled, skipped := Selected(cfg, false)
 	if len(enabled) != 0 || len(skipped) != 0 {
 		t.Errorf("a disabled control should neither run nor be reported as skipped")

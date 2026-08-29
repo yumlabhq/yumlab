@@ -8,6 +8,7 @@ package parse
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -57,11 +58,143 @@ type Environment struct {
 	Loc  Location
 }
 
+// Access is the level granted to one permission scope.
+type Access string
+
+const (
+	AccessNone  Access = "none"
+	AccessRead  Access = "read"
+	AccessWrite Access = "write"
+)
+
+// Permissions is a `permissions:` block.
+//
+// Two GitHub rules make this worth modelling precisely, because together they
+// are what allows a missing scope to be proven rather than guessed:
+//
+//   - a job's block replaces the workflow's block entirely, it does not merge;
+//   - naming any scope sets every scope that is not named to none.
+//
+// Declared separates "permissions: {}" (declared, grants nothing) from no block
+// at all (not declared, the effective grant comes from a repository setting we
+// cannot see offline).
+type Permissions struct {
+	// Declared is false when the workflow or job has no permissions block.
+	Declared bool
+	// Loc is where the block sits, meaningful only when Declared.
+	Loc Location
+	// Dynamic is set when the block is an expression we cannot resolve.
+	Dynamic bool
+
+	// scopes holds the levels that were named.
+	scopes map[string]Access
+	// all is set by the read-all and write-all shorthands, which name every
+	// scope at once, including scopes GitHub may add later.
+	all Access
+}
+
+// Grants reports the level for a scope. Because naming any scope sets the rest
+// to none, an undeclared scope in a declared block is none.
+func (p Permissions) Grants(scope string) Access {
+	if lvl, ok := p.scopes[scope]; ok {
+		return lvl
+	}
+	if p.all != "" {
+		return p.all
+	}
+	return AccessNone
+}
+
+// Allows reports whether the block grants at least the wanted level.
+func (p Permissions) Allows(scope string, want Access) bool {
+	got := p.Grants(scope)
+	if want == AccessWrite {
+		return got == AccessWrite
+	}
+	return got == AccessRead || got == AccessWrite
+}
+
+// Scopes returns the named scopes, sorted.
+func (p Permissions) Scopes() []string {
+	out := make([]string, 0, len(p.scopes))
+	for s := range p.scopes {
+		out = append(out, s)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// Step is one entry of a job's steps sequence. Only what the controls need is
+// modelled: which action it runs and which inputs it was given.
+type Step struct {
+	Loc  Location
+	Name string
+	// Uses is the action reference, e.g. actions/checkout@v4. Empty for a
+	// `run:` step.
+	Uses string
+
+	// inputs holds the step's `with:` mapping. Values matter: whether an action
+	// is governed by the workflow's permissions depends on which token it was
+	// handed, and that is written in the value.
+	inputs map[string]string
+}
+
+// HasInput reports whether the step passed the named input under `with:`.
+func (s Step) HasInput(name string) bool {
+	_, ok := s.inputs[name]
+	return ok
+}
+
+// Input returns the raw value of a `with:` input.
+func (s Step) Input(name string) string { return s.inputs[name] }
+
+// tokenInputs are the input names actions conventionally use to receive the
+// token they authenticate with.
+var tokenInputs = []string{"token", "repo-token", "github-token", "github_token"}
+
+// UsesDefaultToken reports whether the step acts with the workflow's own
+// GITHUB_TOKEN.
+//
+// This decides whether the `permissions:` block governs the step at all. An
+// action handed a personal access token or a GitHub App token authenticates as
+// something else entirely, and the block says nothing about what it may do —
+// concluding anything there would be a false positive.
+//
+// A step that passes no token input at all gets GITHUB_TOKEN by convention, so
+// the block does govern it.
+func (s Step) UsesDefaultToken() bool {
+	for _, name := range tokenInputs {
+		v, ok := s.inputs[name]
+		if !ok {
+			continue
+		}
+		return referencesDefaultToken(v)
+	}
+	return true
+}
+
+// referencesDefaultToken reports whether an input value is the workflow's own
+// token, written either as secrets.GITHUB_TOKEN or as github.token.
+func referencesDefaultToken(value string) bool {
+	for _, ref := range expr.Scan(value).Refs {
+		switch {
+		case ref.Context == expr.CtxSecrets && ref.Name() == "GITHUB_TOKEN":
+			return true
+		case ref.Context == expr.CtxGitHub && ref.Name() == "token":
+			return true
+		}
+	}
+	return false
+}
+
 // Job is one entry of the workflow's jobs mapping.
 type Job struct {
 	ID   string
 	Name string
 	Loc  Location
+
+	// Steps are the job's steps, in order.
+	Steps []Step
 
 	// Environments lists the deployment environments whose secrets this job
 	// can read. GitHub allows one environment per job; this stays a slice so
@@ -75,6 +208,18 @@ type Job struct {
 
 	// Uses is set when the job calls a reusable workflow.
 	Uses string
+
+	// Permissions is the job's own permissions block, if it declares one.
+	Permissions Permissions
+}
+
+// EffectivePermissions returns the permissions that actually apply to the job:
+// its own block when it declares one, otherwise the workflow's.
+func (w *Workflow) EffectivePermissions(job *Job) Permissions {
+	if job != nil && job.Permissions.Declared {
+		return job.Permissions
+	}
+	return w.Permissions
 }
 
 // Workflow is a parsed workflow file.
@@ -96,6 +241,10 @@ type Workflow struct {
 	// CallSecrets holds the secret names declared under on.workflow_call.secrets.
 	// They are parameters, not repository secrets.
 	CallSecrets map[string]Environment
+
+	// Permissions is the workflow-level permissions block, if it declares one.
+	// It applies to every job that does not declare its own.
+	Permissions Permissions
 
 	Root  *yaml.Node
 	lines []string
@@ -135,6 +284,7 @@ func Parse(displayPath string, src []byte) (*Workflow, error) {
 	}
 
 	w.Name = scalarValue(mapValue(doc, "name"))
+	w.Permissions = w.readPermissions(mapValue(doc, "permissions"))
 	w.readTriggers(mapValue(doc, "on"))
 	w.readJobs(mapValue(doc, "jobs"))
 	w.walk(doc, walkCtx{field: "", jobID: ""})
@@ -195,11 +345,103 @@ func (w *Workflow) readJobs(jobs *yaml.Node) {
 		if v.Kind == yaml.MappingNode {
 			job.Name = scalarValue(mapValue(v, "name"))
 			job.Uses = scalarValue(mapValue(v, "uses"))
+			job.Permissions = w.readPermissions(mapValue(v, "permissions"))
+			job.Steps = w.readSteps(mapValue(v, "steps"))
 			w.readEnvironment(job, mapValue(v, "environment"))
 		}
 		w.Jobs[job.ID] = job
 		w.JobOrder = append(w.JobOrder, job.ID)
 	}
+}
+
+// readSteps reads a job's steps sequence.
+func (w *Workflow) readSteps(steps *yaml.Node) []Step {
+	if steps == nil || steps.Kind != yaml.SequenceNode {
+		return nil
+	}
+
+	out := make([]Step, 0, len(steps.Content))
+	for _, n := range steps.Content {
+		if n.Kind != yaml.MappingNode {
+			continue
+		}
+		step := Step{
+			Loc:    Location{File: w.Path, Line: n.Line, Col: n.Column},
+			Name:   scalarValue(mapValue(n, "name")),
+			Uses:   strings.TrimSpace(scalarValue(mapValue(n, "uses"))),
+			inputs: map[string]string{},
+		}
+		// Point at the `uses:` line rather than the start of the step, so a
+		// finding lands on the action that caused it.
+		if u := mapValue(n, "uses"); u != nil {
+			step.Loc = Location{File: w.Path, Line: u.Line, Col: u.Column}
+		}
+		if with := mapValue(n, "with"); with != nil && with.Kind == yaml.MappingNode {
+			for i := 0; i+1 < len(with.Content); i += 2 {
+				step.inputs[with.Content[i].Value] = with.Content[i+1].Value
+			}
+		}
+		out = append(out, step)
+	}
+	return out
+}
+
+// readPermissions reads a `permissions:` block.
+//
+// GitHub accepts three shapes: the shorthands read-all and write-all, an empty
+// mapping which grants nothing, and a mapping of scope to level.
+func (w *Workflow) readPermissions(n *yaml.Node) Permissions {
+	if n == nil {
+		return Permissions{}
+	}
+
+	p := Permissions{
+		Declared: true,
+		Loc:      Location{File: w.Path, Line: n.Line, Col: n.Column},
+		scopes:   map[string]Access{},
+	}
+
+	switch n.Kind {
+	case yaml.ScalarNode:
+		if expr.HasExpression(n.Value) {
+			p.Dynamic = true
+			return p
+		}
+		// A shorthand names every scope at once. Rather than enumerate the
+		// scopes GitHub happens to define today, record the level and let
+		// Grants answer for any scope asked about.
+		switch n.Value {
+		case "read-all":
+			p.all = AccessRead
+		case "write-all":
+			p.all = AccessWrite
+		case "":
+			// `permissions:` with nothing after it grants nothing.
+		default:
+			// An unrecognised shorthand is not something to guess about.
+			p.Dynamic = true
+		}
+
+	case yaml.MappingNode:
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			k, v := n.Content[i], n.Content[i+1]
+			if v.Kind != yaml.ScalarNode || expr.HasExpression(v.Value) {
+				p.Dynamic = true
+				continue
+			}
+			switch v.Value {
+			case "read", "write", "none":
+				p.scopes[k.Value] = Access(v.Value)
+			default:
+				p.Dynamic = true
+			}
+		}
+
+	default:
+		p.Dynamic = true
+	}
+
+	return p
 }
 
 func (w *Workflow) readEnvironment(job *Job, env *yaml.Node) {
