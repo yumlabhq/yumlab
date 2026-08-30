@@ -133,6 +133,13 @@ type Step struct {
 	// `run:` step.
 	Uses string
 
+	// Run is the shell script of a `run:` step, empty for a `uses:` step.
+	//
+	// Controls must be careful with this: inferring intent from shell is where
+	// false positives come from. Searching it for a specific literal command is
+	// safe; deducing what a script "does" is not.
+	Run string
+
 	// inputs holds the step's `with:` mapping. Values matter: whether an action
 	// is governed by the workflow's permissions depends on which token it was
 	// handed, and that is written in the value.
@@ -369,6 +376,7 @@ func (w *Workflow) readSteps(steps *yaml.Node) []Step {
 			Loc:    Location{File: w.Path, Line: n.Line, Col: n.Column},
 			Name:   scalarValue(mapValue(n, "name")),
 			Uses:   strings.TrimSpace(scalarValue(mapValue(n, "uses"))),
+			Run:    scalarValue(mapValue(n, "run")),
 			inputs: map[string]string{},
 		}
 		// Point at the `uses:` line rather than the start of the step, so a
